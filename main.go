@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/aprosvetova/ninebot-mqtt/scooter/protocol"
@@ -61,14 +63,14 @@ func processSerial() {
 		if err != nil {
 			log.Fatalf("current request error: %s", err.Error())
 		}
-		current := float64(toInt(currentResp.Payload)) * 10 / 1000
+		current := float64(toInt16(currentResp.Payload)) * 10 / 1000
 
 		voltageReq := protocol.GetVoltage()
 		voltageResp, err := request(voltageReq)
 		if err != nil {
 			log.Fatalf("voltage request error: %s", err.Error())
 		}
-		voltage := float64(toInt(voltageResp.Payload)) * 10 / 1000
+		voltage := float64(toInt16(voltageResp.Payload)) * 10 / 1000
 
 		temperatureReq := protocol.GetTemperature()
 		temperatureResp, err := request(temperatureReq)
@@ -225,5 +227,15 @@ func toInt(bytes []byte) int32 {
 		result += int32(bytes[i])
 	}
 
+	return result
+}
+
+func toInt16(bytesSlice []byte) int16 {
+	var result int16 = 0
+	buf := bytes.NewReader(bytesSlice)
+	err := binary.Read(buf, binary.LittleEndian, &result)
+	if err != nil {
+		log.Fatalf("convert error: %s", err.Error())
+	}
 	return result
 }
