@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/aprosvetova/ninebot-mqtt/scooter/protocol"
+	"github.com/montanaflynn/stats"
 	"log"
 	"net"
 	"os"
@@ -20,6 +21,12 @@ var addr string
 func processSerial() {
 	addr = "192.168.88.82:1234"
 	checkConnection(true)
+	var capacityStats = make([]int32, 0)
+	var capacityTimestamps = make([]time.Time, 0)
+	var lastCapacity int32 = -1
+	var capacityDrainRate float64
+	var ttl int64 = 0
+	var ttld time.Duration
 	for {
 		statusReq := protocol.GetStatus()
 		statusResp, err := request(statusReq)
@@ -40,28 +47,28 @@ func processSerial() {
 		if err != nil {
 			log.Fatalf("remainingCapacityPerc request error: %s", err.Error())
 		}
-		remainingCapacityPerc := remainingCapacityPercResp.Payload
+		remainingCapacityPerc := toInt(remainingCapacityPercResp.Payload)
 
 		remainingCapacityReq := protocol.GetRemainingCapacity()
 		remainingCapacityResp, err := request(remainingCapacityReq)
 		if err != nil {
 			log.Fatalf("remainingCapacity request error: %s", err.Error())
 		}
-		remainingCapacity := remainingCapacityResp.Payload
+		remainingCapacity := toInt(remainingCapacityResp.Payload)
 
 		currentReq := protocol.GetCurrent()
 		currentResp, err := request(currentReq)
 		if err != nil {
 			log.Fatalf("current request error: %s", err.Error())
 		}
-		current := currentResp.Payload
+		current := float64(toInt(currentResp.Payload)) * 10 / 1000
 
 		voltageReq := protocol.GetVoltage()
 		voltageResp, err := request(voltageReq)
 		if err != nil {
 			log.Fatalf("voltage request error: %s", err.Error())
 		}
-		voltage := voltageResp.Payload
+		voltage := float64(toInt(voltageResp.Payload)) * 10 / 1000
 
 		temperatureReq := protocol.GetTemperature()
 		temperatureResp, err := request(temperatureReq)
@@ -70,16 +77,37 @@ func processSerial() {
 		}
 		temperature := temperatureResp.Payload
 
+		if lastCapacity == -1 {
+			lastCapacity = remainingCapacity
+		} else {
+			capacityStats = append(capacityStats, lastCapacity-remainingCapacity)
+			capacityTimestamps = append(capacityTimestamps, time.Now())
+			lastCapacity = remainingCapacity
+
+			sum, _ := stats.LoadRawData(capacityStats).Sum()
+			capacityDrainRate = sum / float64(time.Now().Unix()-capacityTimestamps[0].Unix())
+
+			ttl = int64(float64(remainingCapacity) / capacityDrainRate)
+			ttld, _ = time.ParseDuration(fmt.Sprintf("%ds", ttl))
+		}
+		if len(capacityStats) > 10000 {
+			capacityStats = append(capacityStats[:1], capacityStats[2:]...)
+			capacityTimestamps = append(capacityTimestamps[:1], capacityTimestamps[2:]...)
+		}
+
 		log.Printf(
-			"[%s] [%d%% / %dmAh] status: %x; %.2f A, %.2f V; %d°/%d°",
+			"[%s] [%d%% / %dmAh] status: %#b; %.2f A, %.2f V, %.2f W; %d°/%d°; ttl %s",
 			serial,
-			toInt(remainingCapacityPerc),
-			toInt(remainingCapacity),
+			remainingCapacityPerc,
+			remainingCapacity,
 			status,
-			float64(toInt(current))*10/1000,
-			float64(toInt(voltage))*10/1000,
+			current,
+			voltage,
+			current*voltage,
 			int(temperature[0])-20,
-			int(temperature[1])-20)
+			int(temperature[1])-20,
+			ttld.String(),
+		)
 	}
 
 }
@@ -185,8 +213,8 @@ func printBytes(tag string, bytes []byte) {
 	log.Printf("%s (%d):\t %x \t %# x", tag, len(bytes), bytes, bytes)
 }
 
-func toInt(bytes []byte) int {
-	result := 0
+func toInt(bytes []byte) int32 {
+	var result int32 = 0
 	//for i := 0; i < len(bytes); i++ {
 	//	result = result << 8
 	//	result += int(bytes[i])
@@ -194,7 +222,7 @@ func toInt(bytes []byte) int {
 	//REVERSE ORDER!!!!
 	for i := len(bytes) - 1; i >= 0; i-- {
 		result = result << 8
-		result += int(bytes[i])
+		result += int32(bytes[i])
 	}
 
 	return result
