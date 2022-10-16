@@ -4,20 +4,16 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"log"
 )
 
 const ReadRegisterCommand RequestCommand = 0x01
 
-func GetBattery() []byte {
-	return CreateRequest(ReadRegisterCommand, 0x10, 0x02)
-}
-
 func GetStatus() []byte {
-	//return CreateRequest(ReadRegisterCommand, 0x30, 0x0C)
 	return CreateRequest(ReadRegisterCommand, 0x30, 0x02)
 }
 
-func GetSerial() []byte {
+func GetSerialNumber() []byte {
 	return CreateRequest(ReadRegisterCommand, 0x10, 0x0E)
 }
 
@@ -27,6 +23,14 @@ func GetRemainingCapacityPerc() []byte {
 
 func GetRemainingCapacity() []byte {
 	return CreateRequest(ReadRegisterCommand, 0x31, 0x02)
+}
+
+func GetActualCapacity() []byte {
+	return CreateRequest(ReadRegisterCommand, 0x19, 0x02)
+}
+
+func GetFactoryCapacity() []byte {
+	return CreateRequest(ReadRegisterCommand, 0x18, 0x02)
 }
 
 func GetCurrent() []byte {
@@ -78,4 +82,14 @@ func getChecksum(part []byte) []byte {
 	bChkSum := make([]byte, 2)
 	binary.LittleEndian.PutUint16(bChkSum, uint16(chkSum))
 	return bChkSum
+}
+
+func ToInt16(bytesSlice []byte) int16 {
+	var result int16 = 0
+	buf := bytes.NewReader(bytesSlice)
+	err := binary.Read(buf, binary.LittleEndian, &result)
+	if err != nil {
+		log.Fatalf("convert error: %s", err.Error())
+	}
+	return result
 }

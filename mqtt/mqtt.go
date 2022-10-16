@@ -1,26 +1,25 @@
 package mqtt
 
 import (
+	"encoding/json"
 	"fmt"
 	proto "github.com/huin/mqtt"
 	"github.com/jeffallen/mqtt"
+	"log"
 	"net"
-	"strconv"
 )
 
 type Client struct {
 	options Options
-	mqttC *mqtt.ClientConn
+	mqttC   *mqtt.ClientConn
 }
 
 type Options struct {
-	Address string
+	Address  string
 	Username string
 	Password string
-	BatteryTopic string
-	AvailabilityTopic string
-	PayloadAvailable string
-	PayloadNotAvailable string
+	ClientId string
+	Topic    string
 }
 
 func Connect(options Options) (client *Client, err error) {
@@ -29,39 +28,27 @@ func Connect(options Options) (client *Client, err error) {
 		return
 	}
 	mqttC := mqtt.NewClientConn(conn)
+	mqttC.ClientId = options.ClientId
 	err = mqttC.Connect(options.Username, options.Password)
 	if err != nil {
 		return
 	}
 	client = &Client{
 		options: options,
-		mqttC: mqttC,
+		mqttC:   mqttC,
 	}
 	return
 }
 
-func (c *Client) sendAvailable(mac string, available bool) {
-	if c.options.AvailabilityTopic == "" {
+func (c *Client) SendFullInfo(id string, info map[string]interface{}) {
+	jsonInfo, err := json.Marshal(info)
+	if err != nil {
+		log.Printf("json marshal error: %s", err.Error())
 		return
 	}
-	data := c.options.PayloadNotAvailable
-	if available {
-		data = c.options.PayloadAvailable
-	}
-	c.mqttC.Publish(&proto.Publish{
-		TopicName: fmt.Sprintf(c.options.AvailabilityTopic, mac),
-		Payload:   proto.BytesPayload([]byte(data)),
-	})
-}
 
-func (c *Client) SendOffline(name string) {
-	c.sendAvailable(name, false)
-}
-
-func (c *Client) SendBatteryStatus(name string, percent int) {
 	c.mqttC.Publish(&proto.Publish{
-		TopicName: fmt.Sprintf(c.options.BatteryTopic, name),
-		Payload:   proto.BytesPayload([]byte(strconv.Itoa(percent))),
+		TopicName: fmt.Sprintf(c.options.Topic, id),
+		Payload:   proto.BytesPayload(jsonInfo),
 	})
-	c.sendAvailable(name, true)
 }
