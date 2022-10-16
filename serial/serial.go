@@ -61,16 +61,20 @@ func waitResponse(reader *bufio.Reader) ([]byte, error) {
 func CheckConnection(force bool) {
 	var err error
 	if force || c == nil {
-		if c != nil {
-			c.Close()
+		for {
+			if c != nil {
+				c.Close()
+			}
+			log.Printf("Connecting...")
+			c, err = net.Dial("tcp", Addr)
+			if err != nil {
+				log.Printf("error connecting to socket: %s", err.Error())
+				continue
+			}
+			r = bufio.NewReader(c)
+			log.Printf("Connected to %s", Addr)
+			break
 		}
-		log.Printf("Connecting...")
-		c, err = net.Dial("tcp", Addr)
-		if err != nil {
-			log.Fatalf("error connecting to socket: %s", err.Error())
-		}
-		r = bufio.NewReader(c)
-		log.Printf("Connected to %s", Addr)
 	}
 	c.SetDeadline(time.Now().Add(2000 * time.Millisecond))
 }
