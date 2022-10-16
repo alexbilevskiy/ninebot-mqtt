@@ -44,48 +44,30 @@ func processSerial() {
 
 	for {
 		statusReq := protocol.GetStatus()
-		statusResp, err := scooter.Request(statusReq)
-		if err != nil {
-			log.Fatalf("status request error: %s", err.Error())
-		}
+		statusResp := scooter.Request(statusReq)
 		fullInfo["status"] = protocol.ToInt16(statusResp.Payload)
 
 		if serialNumber == "" {
 			serialNumberReq := protocol.GetSerialNumber()
-			serialNumberResp, err := scooter.Request(serialNumberReq)
-			if err != nil {
-				log.Fatalf("serialNumber request error: %s", err.Error())
-			}
+			serialNumberResp := scooter.Request(serialNumberReq)
 			serialNumber = string(serialNumberResp.Payload)
 		}
 
 		remainingCapacityPercReq := protocol.GetRemainingCapacityPerc()
-		remainingCapacityPercResp, err := scooter.Request(remainingCapacityPercReq)
-		if err != nil {
-			log.Fatalf("remainingCapacityPerc request error: %s", err.Error())
-		}
+		remainingCapacityPercResp := scooter.Request(remainingCapacityPercReq)
 		fullInfo["remaining_capacity_perc"] = protocol.ToInt16(remainingCapacityPercResp.Payload)
 
 		remainingCapacityReq := protocol.GetRemainingCapacity()
-		remainingCapacityResp, err := scooter.Request(remainingCapacityReq)
-		if err != nil {
-			log.Fatalf("remainingCapacity request error: %s", err.Error())
-		}
+		remainingCapacityResp := scooter.Request(remainingCapacityReq)
 		fullInfo["remaining_capacity"] = protocol.ToInt16(remainingCapacityResp.Payload)
 
 		if _, ok := fullInfo["actual_capacity"]; !ok {
 			actualCapacityReq := protocol.GetActualCapacity()
-			actualCapacityResp, err := scooter.Request(actualCapacityReq)
-			if err != nil {
-				log.Fatalf("actualCapacity request error: %s", err.Error())
-			}
+			actualCapacityResp := scooter.Request(actualCapacityReq)
 			fullInfo["actual_capacity"] = protocol.ToInt16(actualCapacityResp.Payload)
 
 			factoryCapacityReq := protocol.GetFactoryCapacity()
-			factoryCapacityResp, err := scooter.Request(factoryCapacityReq)
-			if err != nil {
-				log.Fatalf("factoryCapacity request error: %s", err.Error())
-			}
+			factoryCapacityResp := scooter.Request(factoryCapacityReq)
 			fullInfo["factory_capacity"] = protocol.ToInt16(factoryCapacityResp.Payload)
 			if fullInfo["actual_capacity"] != fullInfo["factory_capacity"] {
 				log.Printf("WARNING! factory capacity: %d, actual: %d", fullInfo["factory_capacity"], fullInfo["actual_capacity"])
@@ -94,34 +76,22 @@ func processSerial() {
 		}
 
 		currentReq := protocol.GetCurrent()
-		currentResp, err := scooter.Request(currentReq)
-		if err != nil {
-			log.Fatalf("current request error: %s", err.Error())
-		}
+		currentResp := scooter.Request(currentReq)
 		fullInfo["current"] = float64(protocol.ToInt16(currentResp.Payload)) * 10 / 1000
 
 		voltageReq := protocol.GetVoltage()
-		voltageResp, err := scooter.Request(voltageReq)
-		if err != nil {
-			log.Fatalf("voltage request error: %s", err.Error())
-		}
+		voltageResp := scooter.Request(voltageReq)
 		fullInfo["voltage"] = float64(protocol.ToInt16(voltageResp.Payload)) * 10 / 1000
 		fullInfo["power"] = fullInfo["current"].(float64) * fullInfo["voltage"].(float64)
 
 		if len(capacityStats)%10 == 0 {
 			cellsVoltageReq := protocol.GetCellsVoltage()
-			cellsVoltageResp, err := scooter.Request(cellsVoltageReq)
-			if err != nil {
-				log.Fatalf("cellsVoltage request error: %s", err.Error())
-			}
+			cellsVoltageResp := scooter.Request(cellsVoltageReq)
 			fullInfo["cell_voltage"] = scooter.ParseCellsVoltageResp(cellsVoltageResp.Payload)
 		}
 
 		temperatureReq := protocol.GetTemperature()
-		temperatureResp, err := scooter.Request(temperatureReq)
-		if err != nil {
-			log.Fatalf("temperature request error: %s", err.Error())
-		}
+		temperatureResp := scooter.Request(temperatureReq)
 		fullInfo["temperature"] = make(map[string]int, 2)
 		fullInfo["temperature"].(map[string]int)["zone_0"] = int(temperatureResp.Payload[0]) - 20
 		fullInfo["temperature"].(map[string]int)["zone_1"] = int(temperatureResp.Payload[1]) - 20
