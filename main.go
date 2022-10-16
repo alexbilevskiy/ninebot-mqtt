@@ -40,7 +40,7 @@ func processSerial() {
 	var ttl int64 = 0
 	var ttld time.Duration
 
-	var serialNumber string
+	var serialNumber = ""
 
 	for {
 		statusReq := protocol.GetStatus()
@@ -50,12 +50,14 @@ func processSerial() {
 		}
 		fullInfo["status"] = protocol.ToInt16(statusResp.Payload)
 
-		serialNumberReq := protocol.GetSerialNumber()
-		serialNumberResp, err := scooter.Request(serialNumberReq)
-		if err != nil {
-			log.Fatalf("serialNumber request error: %s", err.Error())
+		if serialNumber == "" {
+			serialNumberReq := protocol.GetSerialNumber()
+			serialNumberResp, err := scooter.Request(serialNumberReq)
+			if err != nil {
+				log.Fatalf("serialNumber request error: %s", err.Error())
+			}
+			serialNumber = string(serialNumberResp.Payload)
 		}
-		serialNumber = string(serialNumberResp.Payload)
 
 		remainingCapacityPercReq := protocol.GetRemainingCapacityPerc()
 		remainingCapacityPercResp, err := scooter.Request(remainingCapacityPercReq)
@@ -106,13 +108,23 @@ func processSerial() {
 		fullInfo["voltage"] = float64(protocol.ToInt16(voltageResp.Payload)) * 10 / 1000
 		fullInfo["power"] = fullInfo["current"].(float64) * fullInfo["voltage"].(float64)
 
+		if len(capacityStats)%10 == 0 {
+			cellsVoltageReq := protocol.GetCellsVoltage()
+			cellsVoltageResp, err := scooter.Request(cellsVoltageReq)
+			if err != nil {
+				log.Fatalf("cellsVoltage request error: %s", err.Error())
+			}
+			fullInfo["cell_voltage"] = scooter.ParseCellsVoltageResp(cellsVoltageResp.Payload)
+		}
+
 		temperatureReq := protocol.GetTemperature()
 		temperatureResp, err := scooter.Request(temperatureReq)
 		if err != nil {
 			log.Fatalf("temperature request error: %s", err.Error())
 		}
-		fullInfo["temperature_0"] = int(temperatureResp.Payload[0]) - 20
-		fullInfo["temperature_1"] = int(temperatureResp.Payload[1]) - 20
+		fullInfo["temperature"] = make(map[string]int, 2)
+		fullInfo["temperature"].(map[string]int)["zone_0"] = int(temperatureResp.Payload[0]) - 20
+		fullInfo["temperature"].(map[string]int)["zone_1"] = int(temperatureResp.Payload[1]) - 20
 
 		if lastCapacity == -1 {
 			lastCapacity = fullInfo["remaining_capacity"].(int16)
@@ -145,8 +157,8 @@ func processSerial() {
 			fullInfo["current"],
 			fullInfo["voltage"],
 			fullInfo["power"],
-			fullInfo["temperature_0"].(int),
-			fullInfo["temperature_1"].(int),
+			fullInfo["temperature"].(map[string]int)["zone_0"],
+			fullInfo["temperature"].(map[string]int)["zone_1"],
 			ttld.Hours(),
 			fullInfo["moving_avg_size"],
 		)

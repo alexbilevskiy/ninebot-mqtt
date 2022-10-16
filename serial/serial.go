@@ -96,6 +96,6 @@ func waitResponseWithTimeout(reader *bufio.Reader, timeoutMs time.Duration) ([]b
 	}
 }
 
-func printBytes(tag string, bytes []byte) {
+func PrintBytes(tag string, bytes []byte) {
 	log.Printf("%s (%d):\t %x \t %# x", tag, len(bytes), bytes, bytes)
 }

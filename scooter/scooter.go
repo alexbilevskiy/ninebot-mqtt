@@ -1,6 +1,7 @@
 package scooter
 
 import (
+	"fmt"
 	"github.com/aprosvetova/ninebot-mqtt/scooter/protocol"
 	"github.com/aprosvetova/ninebot-mqtt/serial"
 	"log"
@@ -26,5 +27,18 @@ func Request(req []byte) (*protocol.Response, error) {
 	//printBytes("resp parsed", parsed.Payload)
 
 	return parsed, nil
+}
 
+func ParseCellsVoltageResp(resp []byte) map[string]int16 {
+	var result = make(map[string]int16)
+	var buf = make([]byte, 2)
+	for k, v := range resp {
+		buf[k%2] = v
+		if k%2 == 1 && k != 0 {
+			name := fmt.Sprintf("cell_%d", k/2)
+			result[name] = protocol.ToInt16(buf)
+		}
+	}
+
+	return result
 }

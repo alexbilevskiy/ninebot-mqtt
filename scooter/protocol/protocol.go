@@ -45,6 +45,10 @@ func GetTemperature() []byte {
 	return CreateRequest(ReadRegisterCommand, 0x35, 0x02)
 }
 
+func GetCellsVoltage() []byte {
+	return CreateRequest(ReadRegisterCommand, 0x40, 0x14)
+}
+
 func CreateRequest(command RequestCommand, param byte, payload ...byte) []byte {
 	cmd := []byte{0x5A, 0xA5, 0x00, 0x20, 0x22, byte(command), param}
 	cmd = append(cmd, payload...)
