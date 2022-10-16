@@ -9,23 +9,20 @@ import (
 
 func Request(req []byte) *protocol.Response {
 	var parsed *protocol.Response
+	var parseErr error
 	for {
 		response, requestErr := serial.Request(req)
 		if requestErr != nil {
 			log.Fatalf("serial request error: %s", requestErr.Error())
 		}
-		//printBytes("status response", response)
-		var parseErr error
+		//printBytes("response full", response)
 		parsed, parseErr = protocol.ParseResponse(response)
 		if parseErr != nil {
-			if parseErr.Error() == "wrong checksum" {
-				log.Printf("parse error: %s", parseErr.Error())
+			log.Printf("parse error: %s", parseErr.Error())
 
-				continue
-			}
-			log.Fatalf("parse error: %s", parseErr.Error())
+			continue
 		}
-		//printBytes("resp parsed", parsed.Payload)
+		//printBytes("response parsed", parsed.Payload)
 		return parsed
 	}
 }
