@@ -31,7 +31,8 @@ func processSerial() {
 	if err != nil {
 		log.Fatalf("failed to connect to mqtt server: %s", err.Error())
 	}
-	var fullInfo = make(map[string]interface{}, 0)
+
+	var fullInfo scooter.FullInfo
 
 	var capacityStats = make([]int16, 0)
 	var capacityTimestamps = make([]time.Time, 0)
@@ -45,7 +46,7 @@ func processSerial() {
 	for {
 		statusReq := protocol.GetStatus()
 		statusResp := scooter.Request(statusReq)
-		fullInfo["status"] = protocol.ToInt16(statusResp.Payload)
+		fullInfo.Status = protocol.ToInt16(statusResp.Payload)
 
 		if serialNumber == "" {
 			serialNumberReq := protocol.GetSerialNumber()
@@ -55,82 +56,82 @@ func processSerial() {
 
 		remainingCapacityPercReq := protocol.GetRemainingCapacityPerc()
 		remainingCapacityPercResp := scooter.Request(remainingCapacityPercReq)
-		fullInfo["remaining_capacity_perc"] = protocol.ToInt16(remainingCapacityPercResp.Payload)
+		fullInfo.RemainingCapacityPerc = protocol.ToInt16(remainingCapacityPercResp.Payload)
 
 		remainingCapacityReq := protocol.GetRemainingCapacity()
 		remainingCapacityResp := scooter.Request(remainingCapacityReq)
-		fullInfo["remaining_capacity"] = protocol.ToInt16(remainingCapacityResp.Payload)
+		fullInfo.RemainingCapacity = protocol.ToInt16(remainingCapacityResp.Payload)
 
-		if _, ok := fullInfo["actual_capacity"]; !ok {
+		if fullInfo.ActualCapacity == 0 {
 			actualCapacityReq := protocol.GetActualCapacity()
 			actualCapacityResp := scooter.Request(actualCapacityReq)
-			fullInfo["actual_capacity"] = protocol.ToInt16(actualCapacityResp.Payload)
+			fullInfo.ActualCapacity = protocol.ToInt16(actualCapacityResp.Payload)
 
 			factoryCapacityReq := protocol.GetFactoryCapacity()
 			factoryCapacityResp := scooter.Request(factoryCapacityReq)
-			fullInfo["factory_capacity"] = protocol.ToInt16(factoryCapacityResp.Payload)
-			if fullInfo["actual_capacity"] != fullInfo["factory_capacity"] {
-				log.Printf("WARNING! factory capacity: %d, actual: %d", fullInfo["factory_capacity"], fullInfo["actual_capacity"])
-				fullInfo["actual_capacity"] = fullInfo["factory_capacity"]
+			fullInfo.FactoryCapacity = protocol.ToInt16(factoryCapacityResp.Payload)
+			if fullInfo.ActualCapacity != fullInfo.FactoryCapacity {
+				log.Printf("WARNING! factory capacity: %d, actual: %d", fullInfo.FactoryCapacity, fullInfo.ActualCapacity)
+				fullInfo.ActualCapacity = fullInfo.FactoryCapacity
 			}
 		}
 
 		currentReq := protocol.GetCurrent()
 		currentResp := scooter.Request(currentReq)
-		fullInfo["current"] = float64(protocol.ToInt16(currentResp.Payload)) * 10 / 1000
+		fullInfo.Current = float64(protocol.ToInt16(currentResp.Payload)) * 10 / 1000
 
 		voltageReq := protocol.GetVoltage()
 		voltageResp := scooter.Request(voltageReq)
-		fullInfo["voltage"] = float64(protocol.ToInt16(voltageResp.Payload)) * 10 / 1000
-		fullInfo["power"] = fullInfo["current"].(float64) * fullInfo["voltage"].(float64)
+		fullInfo.Voltage = float64(protocol.ToInt16(voltageResp.Payload)) * 10 / 1000
+		fullInfo.Power = fullInfo.Current * fullInfo.Voltage
 
 		if len(capacityStats)%10 == 0 {
 			cellsVoltageReq := protocol.GetCellsVoltage()
 			cellsVoltageResp := scooter.Request(cellsVoltageReq)
-			fullInfo["cell_voltage"] = scooter.ParseCellsVoltageResp(cellsVoltageResp.Payload)
+			fullInfo.CellVoltage = scooter.ParseCellsVoltageResp(cellsVoltageResp.Payload)
 		}
 
 		temperatureReq := protocol.GetTemperature()
 		temperatureResp := scooter.Request(temperatureReq)
-		fullInfo["temperature"] = make(map[string]int, 2)
-		fullInfo["temperature"].(map[string]int)["zone_0"] = int(temperatureResp.Payload[0]) - 20
-		fullInfo["temperature"].(map[string]int)["zone_1"] = int(temperatureResp.Payload[1]) - 20
+		fullInfo.Temperature = make(map[string]int, 2)
+		fullInfo.Temperature["zone_0"] = int(temperatureResp.Payload[0]) - 20
+		fullInfo.Temperature["zone_1"] = int(temperatureResp.Payload[1]) - 20
 
 		if lastCapacity == -1 {
-			lastCapacity = fullInfo["remaining_capacity"].(int16)
+			lastCapacity = fullInfo.RemainingCapacity
 		} else {
-			capacityStats = append(capacityStats, lastCapacity-fullInfo["remaining_capacity"].(int16))
+			capacityStats = append(capacityStats, lastCapacity-fullInfo.RemainingCapacity)
 			capacityTimestamps = append(capacityTimestamps, time.Now())
-			lastCapacity = fullInfo["remaining_capacity"].(int16)
+			lastCapacity = fullInfo.RemainingCapacity
 
 			sum, _ := stats.LoadRawData(capacityStats).Sum()
 			capacityDrainRate = sum / float64(time.Now().Unix()-capacityTimestamps[0].Unix())
 
-			ttl = int64(float64(fullInfo["remaining_capacity"].(int16)) / capacityDrainRate)
+			ttl = int64(float64(fullInfo.RemainingCapacity) / capacityDrainRate)
 			ttld, _ = time.ParseDuration(fmt.Sprintf("%ds", ttl))
-			fullInfo["ttl"] = ttld.Seconds()
+			fullInfo.Ttl = ttld.Seconds()
 		}
-		fullInfo["moving_avg_size"] = len(capacityStats)
 		if len(capacityStats) > 10000 {
 			capacityStats = append(capacityStats[:1], capacityStats[2:]...)
 			capacityTimestamps = append(capacityTimestamps[:1], capacityTimestamps[2:]...)
 		}
+		fullInfo.MovingAvgSize = len(capacityStats)
 
 		fmt.Printf(
 			"%s [%s] [%d%%] [%d/%dmAh] status: %#b; %05.2fA, %05.2fV, %05.2fW; %d°/%d°; ttl %05.2fh (%d)\r",
 			time.Now().Format("2006-01-02 15:04:05"),
 			serialNumber,
-			fullInfo["remaining_capacity_perc"],
-			fullInfo["remaining_capacity"],
-			fullInfo["actual_capacity"],
-			fullInfo["status"],
-			fullInfo["current"],
-			fullInfo["voltage"],
-			fullInfo["power"],
-			fullInfo["temperature"].(map[string]int)["zone_0"],
-			fullInfo["temperature"].(map[string]int)["zone_1"],
+			fullInfo.RemainingCapacityPerc,
+			fullInfo.RemainingCapacity,
+			fullInfo.ActualCapacity,
+			fullInfo.Status,
+			fullInfo.Current,
+			fullInfo.Voltage,
+			fullInfo.Power,
+			fullInfo.Temperature["zone_0"],
+			fullInfo.Temperature["zone_1"],
 			ttld.Hours(),
-			fullInfo["moving_avg_size"],
+			fullInfo.MovingAvgSize,
 		)
 		mq.SendFullInfo(serialNumber, fullInfo)
 	}

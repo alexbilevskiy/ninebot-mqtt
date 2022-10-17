@@ -40,7 +40,7 @@ func Connect(options Options) (client *Client, err error) {
 	return
 }
 
-func (c *Client) SendFullInfo(id string, info map[string]interface{}) {
+func (c *Client) SendFullInfo(id string, info interface{}) {
 	jsonInfo, err := json.Marshal(info)
 	if err != nil {
 		log.Printf("json marshal error: %s", err.Error())
