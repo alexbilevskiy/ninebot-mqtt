@@ -9,5 +9,3 @@ require (
 )
 
 require github.com/huin/gobinarytest v0.0.0-20170803182140-bc6c19e91749 // indirect
-
-replace github.com/jeffallen/mqtt => github.com/alexbilevskiy/mqtt v0.0.0-20221016195209-af4a9f51109e
