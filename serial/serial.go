@@ -20,6 +20,7 @@ func Request(req []byte) ([]byte, error) {
 		//printBytes("status request", req)
 		nBytes, errWrite := fmt.Fprintf(c, string(req))
 		if errors.Is(errWrite, os.ErrDeadlineExceeded) {
+			log.Printf("")
 			log.Printf("timeout writing to socket (%d bytes written): %s", nBytes, errWrite.Error())
 			CheckConnection(true)
 			continue
@@ -29,6 +30,7 @@ func Request(req []byte) ([]byte, error) {
 
 		response, readErr := waitResponse(r)
 		if errors.Is(readErr, os.ErrDeadlineExceeded) {
+			log.Printf("")
 			log.Printf("timeout reading socket: %s", readErr.Error())
 			CheckConnection(true)
 			continue

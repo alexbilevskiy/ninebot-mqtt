@@ -40,10 +40,13 @@ func processSerial() {
 	var capacityDrainRate float64
 	var ttl int64 = 0
 	var ttld time.Duration
+	var lastTs string
+	var now time.Time
 
 	var serialNumber = ""
 
 	for {
+		now = time.Now()
 		statusReq := protocol.GetStatus()
 		statusResp := scooter.Request(statusReq)
 		fullInfo.Status = protocol.ToInt16(statusResp.Payload)
@@ -100,16 +103,21 @@ func processSerial() {
 		if lastCapacity == -1 {
 			lastCapacity = fullInfo.RemainingCapacity
 		} else {
-			capacityStats = append(capacityStats, lastCapacity-fullInfo.RemainingCapacity)
-			capacityTimestamps = append(capacityTimestamps, time.Now())
+			diff := lastCapacity - fullInfo.RemainingCapacity
+			if diff < 0 {
+				diff = 0
+			}
+			capacityStats = append(capacityStats, diff)
+			capacityTimestamps = append(capacityTimestamps, now)
 			lastCapacity = fullInfo.RemainingCapacity
 
 			sum, _ := stats.LoadRawData(capacityStats).Sum()
-			capacityDrainRate = sum / float64(time.Now().Unix()-capacityTimestamps[0].Unix())
+			capacityDrainRate = sum / float64(now.Unix()-capacityTimestamps[0].Unix())
 
 			ttl = int64(float64(fullInfo.RemainingCapacity) / capacityDrainRate)
 			ttld, _ = time.ParseDuration(fmt.Sprintf("%ds", ttl))
 			fullInfo.Ttl = ttld.Seconds()
+			lastTs = capacityTimestamps[0].Format("2006-01-02 15:04:05")
 		}
 		if len(capacityStats) > 10000 {
 			capacityStats = append(capacityStats[:1], capacityStats[2:]...)
@@ -118,8 +126,9 @@ func processSerial() {
 		fullInfo.MovingAvgSize = len(capacityStats)
 
 		fmt.Printf(
-			"%s [%s] [%d%%] [%d/%dmAh] status: %#b; %05.2fA, %05.2fV, %05.2fW; %d°/%d°; ttl %05.2fh (%d)\r",
-			time.Now().Format("2006-01-02 15:04:05"),
+			"%s (since %s) [%s] [%d%%] [%d/%dmAh] status: %#b; %05.2fA, %05.2fV, %05.2fW; %d°/%d°; ttl %05.2fh (%d)\r",
+			now.Format("2006-01-02 15:04:05"),
+			lastTs,
 			serialNumber,
 			fullInfo.RemainingCapacityPerc,
 			fullInfo.RemainingCapacity,
